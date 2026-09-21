@@ -44,7 +44,7 @@ def _prompt_decision(pending: dict[str, Any]) -> list[dict]:
 
 
 def _drain(agent, result: AgentTurnResult, config: dict) -> AgentTurnResult:
-    while result.pending_interrupt is not None:
+    while result.pending_interrupt is not None: # agent says || ohh i cant move agead, unblock with HITL
         decision = _prompt_decision(result.pending_interrupt)
         result = resume_turn(agent, decision, config)
     return result

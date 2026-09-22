@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "todo": {
+      "command": "uv",
+      "args": ["run", "python", "6.MCPDemo/mcpserver.py"],
+      "cwd": "/Users/sanket/Developer/Codebases/AiEngineeringConcepts"
+    }
+  }
+}

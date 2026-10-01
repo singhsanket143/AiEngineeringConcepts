@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cosine similarity explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #EDF1F3;
+  --panel: #F8FAFB;
+  --ink: #12222B;
+  --muted: #566872;
+  --grid: #D6DFE4;
+  --axis: #8A9CA6;
+  --line: #CBD5DB;
+  --a: #1B5BD8;
+  --b: #C0267A;
+  --arc: #0F8A7E;
+  --display: "Bricolage Grotesque", "Trebuchet MS", system-ui, sans-serif;
+  --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1A20; --panel: #15232B; --ink: #E6EEF2; --muted: #93A5B0;
+    --grid: #22333D; --axis: #4E636F; --line: #2A3B46;
+    --a: #6FA2FF; --b: #FF7DBB; --arc: #3FD0BF;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1A20; --panel: #15232B; --ink: #E6EEF2; --muted: #93A5B0;
+  --grid: #22333D; --axis: #4E636F; --line: #2A3B46;
+  --a: #6FA2FF; --b: #FF7DBB; --arc: #3FD0BF;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.5;
+}
+main { max-width: 1000px; margin: 0 auto; padding: 36px 20px 64px; }
+header h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(30px, 5vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  margin: 0 0 12px;
+}
+header p { margin: 0; max-width: 62ch; color: var(--muted); }
+.formula {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  font-family: var(--display);
+  font-size: 17px;
+}
+section.example {
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 2px solid var(--ink);
+}
+section.example h2 {
+  font-family: var(--display);
+  font-size: 24px;
+  letter-spacing: -0.01em;
+  margin: 0 0 4px;
+}
+section.example > p.lede { margin: 0 0 20px; color: var(--muted); max-width: 60ch; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 760px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+
+.plot-wrap {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 6px;
+}
+svg.plot { display: block; width: 100%; height: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+svg .gridline { stroke: var(--grid); stroke-width: 1; }
+svg .axis { stroke: var(--axis); stroke-width: 1.5; }
+svg .tick { fill: var(--muted); font-size: 10px; font-family: var(--body); }
+svg .vec-a { stroke: var(--a); fill: var(--a); }
+svg .vec-b { stroke: var(--b); fill: var(--b); }
+svg .shaft { stroke-width: 3; stroke-linecap: round; }
+svg .head { stroke: none; }
+svg .arc { fill: color-mix(in srgb, var(--arc) 18%, transparent); stroke: var(--arc); stroke-width: 2; }
+svg .lbl { font-family: var(--display); font-weight: 700; font-size: 13px; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+svg .lbl-a { fill: var(--a); }
+svg .lbl-b { fill: var(--b); }
+svg .arc-lbl { fill: var(--arc); font-family: var(--display); font-weight: 700; font-size: 12px; paint-order: stroke; stroke: var(--panel); stroke-width: 4px; stroke-linejoin: round; }
+svg .handle { fill: var(--panel); stroke-width: 3; cursor: grab; }
+svg .handle:active { cursor: grabbing; }
+svg .handle-a { stroke: var(--a); }
+svg .handle-b { stroke: var(--b); }
+svg .handle:focus-visible { outline: none; stroke-width: 5; }
+.hint { margin: 8px 4px 2px; font-size: 13px; color: var(--muted); }
+
+.vec-row {
+  display: grid;
+  grid-template-columns: 8px auto 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.vec-row .bar { width: 8px; height: 36px; border-radius: 2px; }
+.vec-row .name { font-family: var(--display); font-weight: 700; font-size: 20px; }
+.field { display: flex; align-items: center; gap: 6px; }
+.field label { font-size: 14px; color: var(--muted); }
+.field input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.field input:focus-visible, button:focus-visible { outline: 3px solid var(--arc); outline-offset: 2px; }
+
+.result { margin-top: 22px; }
+.result .big {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(40px, 8vw, 60px);
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.result .big small { font-size: 0.4em; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-right: 6px; }
+.verdict { margin: 6px 0 16px; color: var(--muted); }
+
+.meter { position: relative; height: 12px; margin: 22px 8px 0; background: var(--grid); border-radius: 6px; }
+.meter .mid { position: absolute; left: 50%; top: -4px; bottom: -4px; width: 2px; background: var(--axis); }
+.meter .pin {
+  position: absolute; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  border-radius: 50%; background: var(--ink); border: 4px solid var(--panel);
+  transition: left .18s ease-out;
+}
+.meter-scale { display: flex; justify-content: space-between; margin: 10px 2px 0; font-size: 13px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .meter .pin { transition: none; } }
+
+dl.calc { margin: 20px 0 0; border-top: 1px solid var(--line); }
+dl.calc .row { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--line); }
+dl.calc dt { color: var(--muted); }
+dl.calc dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+button.reset {
+  margin-top: 16px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 500;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--ink);
+  border-radius: 6px;
+  cursor: pointer;
+}
+button.reset:hover { background: var(--ink); color: var(--bg); }
+.note { margin-top: 18px; padding: 12px 14px; border-left: 4px solid var(--arc); background: var(--panel); color: var(--muted); font-size: 15px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Cosine similarity explorer</h1>
+    <p>Cosine similarity compares the direction of two vectors and ignores how long they are. Drag an arrow tip or type new numbers, and the result updates as you go.</p>
+    <div class="formula">cos θ = (A · B) / (‖A‖ × ‖B‖)</div>
+  </header>
+
+  <section class="example" id="ex1"></section>
+  <section class="example" id="ex2"></section>
+</main>
+
+<script>
+(function () {
+  var W = 400, C = 200;
+
+  function num(n, d) {
+    d = d == null ? 3 : d;
+    var s = String(Number(n.toFixed(d)));
+    return s.replace("-", "\u2212");
+  }
+  function pt(x, y) { return "(" + num(x, 2) + ", " + num(y, 2) + ")"; }
+  function svgEl(name, attrs) {
+    var e = document.createElementNS("http://www.w3.org/2000/svg", name);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function build(root, cfg) {
+    var state = { a: cfg.a.slice(), b: cfg.b.slice() };
+    var lock = null; // locked plot range while dragging
+
+    root.innerHTML =
+      '<h2>' + cfg.title + '</h2>' +
+      '<p class="lede">' + cfg.lede + '</p>' +
+      '<div class="grid">' +
+        '<div><div class="plot-wrap"><svg class="plot" viewBox="0 0 ' + W + ' ' + W + '" role="img" aria-label="Plot of vectors A and B"></svg></div>' +
+        '<p class="hint">Drag the circles at the arrow tips to move each vector.</p></div>' +
+        '<div>' +
+          rowHTML("A", "a") + rowHTML("B", "b") +
+          '<div class="result">' +
+            '<div class="big" data-out="cos"></div>' +
+            '<p class="verdict" data-out="verdict"></p>' +
+            '<div class="meter" aria-hidden="true"><div class="mid"></div><div class="pin" data-out="pin"></div></div>' +
+            '<div class="meter-scale"><span>\u22121 opposite</span><span>0 perpendicular</span><span>1 same direction</span></div>' +
+          '</div>' +
+          '<dl class="calc">' +
+            '<div class="row"><dt>Dot product</dt><dd data-out="dot"></dd></div>' +
+            '<div class="row"><dt>Lengths</dt><dd data-out="len"></dd></div>' +
+            '<div class="row"><dt>Cosine</dt><dd data-out="div"></dd></div>' +
+            '<div class="row"><dt>Angle</dt><dd data-out="angle"></dd></div>' +
+          '</dl>' +
+          '<button class="reset" type="button">Reset example</button>' +
+          '<div class="note">' + cfg.note + '</div>' +
+        '</div>' +
+      '</div>';
+
+    function rowHTML(label, key) {
+      return '<div class="vec-row">' +
+        '<div class="bar" style="background:var(--' + key + ')"></div>' +
+        '<div class="name" style="color:var(--' + key + ')">' + label + '</div>' +
+        '<div class="field"><label>x</label><input type="number" step="0.1" inputmode="decimal" data-in="' + key + '0" aria-label="Vector ' + label + ' x"></div>' +
+        '<div class="field"><label>y</label><input type="number" step="0.1" inputmode="decimal" data-in="' + key + '1" aria-label="Vector ' + label + ' y"></div>' +
+      '</div>';
+    }
+
+    var svg = root.querySelector("svg.plot");
+    var out = {};
+    root.querySelectorAll("[data-out]").forEach(function (el) { out[el.dataset.out] = el; });
+    var inputs = {};
+    root.querySelectorAll("[data-in]").forEach(function (el) { inputs[el.dataset.in] = el; });
+
+    function currentRange() {
+      if (lock) return lock;
+      var m = Math.max(Math.abs(state.a[0]), Math.abs(state.a[1]), Math.abs(state.b[0]), Math.abs(state.b[1]));
+      return Math.max(5, Math.ceil(m) + 1);
+    }
+
+    function verdictFor(c) {
+      if (c > 0.9) return "Very similar: the vectors point almost the same way.";
+      if (c > 0.5) return "Similar: the vectors point in broadly the same direction.";
+      if (c >= 0.2) return "Weakly related: the vectors only loosely agree.";
+      if (c > -0.2) return "Nearly unrelated: the vectors are close to perpendicular.";
+      if (c > -0.9) return "Pointing away from each other.";
+      return "Opposed: the vectors point in nearly opposite directions.";
+    }
+
+    function arrow(layer, key, x, y, S, cls) {
+      var ex = C + x * S, ey = C - y * S;
+      var len = Math.hypot(ex - C, ey - C);
+      if (len < 1) return;
+      var ux = (ex - C) / len, uy = (ey - C) / len;
+      var hl = Math.min(16, len * 0.5), hw = 7;
+      var bx = ex - ux * hl, by = ey - uy * hl;
+      layer.appendChild(svgEl("line", { x1: C, y1: C, x2: bx, y2: by, "class": "shaft vec-" + key }));
+      var p = [ex, ey, bx - uy * hw, by + ux * hw, bx + uy * hw, by - ux * hw].join(",");
+      layer.appendChild(svgEl("polygon", { points: p, "class": "head vec-" + key }));
+    }
+
+    function draw() {
+      var R = currentRange();
+      var S = (W / 2 - 22) / R;
+      var step = R <= 8 ? 1 : (R <= 16 ? 2 : 5);
+      svg.innerHTML = "";
+
+      for (var t = -Math.floor(R / step) * step; t <= R; t += step) {
+        var px = C + t * S, py = C - t * S;
+        svg.appendChild(svgEl("line", { x1: px, y1: 10, x2: px, y2: W - 10, "class": "gridline" }));
+        svg.appendChild(svgEl("line", { x1: 10, y1: py, x2: W - 10, y2: py, "class": "gridline" }));
+      }
+      svg.appendChild(svgEl("line", { x1: 10, y1: C, x2: W - 10, y2: C, "class": "axis" }));
+      svg.appendChild(svgEl("line", { x1: C, y1: 10, x2: C, y2: W - 10, "class": "axis" }));
+      for (var u = -Math.floor(R / step) * step; u <= R; u += step) {
+        if (u === 0) continue;
+        var lx = svgEl("text", { x: C + u * S, y: C + 14, "text-anchor": "middle", "class": "tick" });
+        lx.textContent = num(u, 0); svg.appendChild(lx);
+        var ly = svgEl("text", { x: C - 6, y: C - u * S + 3, "text-anchor": "end", "class": "tick" });
+        ly.textContent = num(u, 0); svg.appendChild(ly);
+      }
+
+      var ax = state.a[0], ay = state.a[1], bx = state.b[0], by = state.b[1];
+      var la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+
+      // angle wedge
+      if (la > 0 && lb > 0) {
+        var r = Math.min(46, Math.max(22, Math.min(la, lb) * S * 0.45));
+        var a1 = Math.atan2(ay, ax), a2 = Math.atan2(by, bx);
+        var diff = a2 - a1;
+        while (diff > Math.PI) diff -= 2 * Math.PI;
+        while (diff <= -Math.PI) diff += 2 * Math.PI;
+        if (Math.abs(diff) > 0.001) {
+          var sx = C + r * Math.cos(a1), sy = C - r * Math.sin(a1);
+          var tx = C + r * Math.cos(a2), ty = C - r * Math.sin(a2);
+          var sweep = diff > 0 ? 0 : 1;
+          var d = "M " + C + " " + C + " L " + sx + " " + sy + " A " + r + " " + r + " 0 0 " + sweep + " " + tx + " " + ty + " Z";
+          svg.appendChild(svgEl("path", { d: d, "class": "arc" }));
+          var mid = a1 + diff / 2, rl = r + 16;
+          var at = svgEl("text", { x: C + rl * Math.cos(mid), y: C - rl * Math.sin(mid) + 4, "text-anchor": "middle", "class": "arc-lbl" });
+          at.textContent = num(Math.abs(diff) * 180 / Math.PI, 1) + "\u00B0";
+          svg.appendChild(at);
+        }
+      }
+
+      arrow(svg, "a", ax, ay, S);
+      arrow(svg, "b", bx, by, S);
+
+      [["a", ax, ay, "A"], ["b", bx, by, "B"]].forEach(function (v) {
+        var cx = C + v[1] * S, cy = C - v[2] * S;
+        var off = v[0] === "a" ? -14 : 24;
+        var tl = svgEl("text", { x: Math.min(W - 40, Math.max(40, cx)), y: Math.min(W - 8, Math.max(14, cy + (cy < C ? -16 : 26))), "text-anchor": "middle", "class": "lbl lbl-" + v[0] });
+        tl.textContent = v[3] + " " + pt(v[1], v[2]);
+        svg.appendChild(tl);
+        var h = svgEl("circle", { cx: cx, cy: cy, r: 10, "class": "handle handle-" + v[0], tabindex: 0, role: "slider", "aria-label": "Drag tip of vector " + v[3] });
+        attachDrag(h, v[0]);
+        svg.appendChild(h);
+      });
+    }
+
+    function attachDrag(h, key) {
+      var idx = key === "a" ? "a" : "b";
+      h.addEventListener("pointerdown", function (e) {
+        e.preventDefault();
+        h.setPointerCapture(e.pointerId);
+        lock = currentRange();
+        var move = function (ev) {
+          var rect = svg.getBoundingClientRect();
+          var sx = (ev.clientX - rect.left) / rect.width * W;
+          var sy = (ev.clientY - rect.top) / rect.height * W;
+          var S = (W / 2 - 22) / lock;
+          var lim = lock - 0.2;
+          var x = Math.max(-lim, Math.min(lim, (sx - C) / S));
+          var y = Math.max(-lim, Math.min(lim, -(sy - C) / S));
+          state[idx] = [Math.round(x * 10) / 10, Math.round(y * 10) / 10];
+          update(true);
+        };
+        var up = function () {
+          h.removeEventListener("pointermove", move);
+          h.removeEventListener("pointerup", up);
+          h.removeEventListener("pointercancel", up);
+          lock = null;
+          update(true);
+        };
+        h.addEventListener("pointermove", move);
+        h.addEventListener("pointerup", up);
+        h.addEventListener("pointercancel", up);
+      });
+      h.addEventListener("keydown", function (e) {
+        var d = { ArrowLeft: [-0.5, 0], ArrowRight: [0.5, 0], ArrowUp: [0, 0.5], ArrowDown: [0, -0.5] }[e.key];
+        if (!d) return;
+        e.preventDefault();
+        state[idx] = [state[idx][0] + d[0], state[idx][1] + d[1]];
+        update(true);
+        var again = svg.querySelectorAll(".handle")[key === "a" ? 0 : 1];
+        if (again) again.focus();
+      });
+    }
+
+    function update(syncInputs) {
+      if (syncInputs) {
+        ["a", "b"].forEach(function (k) {
+          [0, 1].forEach(function (i) {
+            var el = inputs[k + i];
+            if (document.activeElement !== el) el.value = num(state[k][i], 2).replace("\u2212", "-");
+          });
+        });
+      }
+      var ax = state.a[0], ay = state.a[1], bx = state.b[0], by = state.b[1];
+      var dot = ax * bx + ay * by;
+      var la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+
+      out.dot.textContent = "(" + num(ax, 2) + " \u00D7 " + num(bx, 2) + ") + (" + num(ay, 2) + " \u00D7 " + num(by, 2) + ") = " + num(dot, 3);
+      out.len.textContent = "\u2016A\u2016 = " + num(la, 3) + "   \u2016B\u2016 = " + num(lb, 3);
+
+      if (la === 0 || lb === 0) {
+        out.cos.innerHTML = '<small>cos θ</small>undefined';
+        out.verdict.textContent = "A zero-length vector has no direction. Give both vectors a non-zero length.";
+        out.div.textContent = "Cannot divide by a length of 0";
+        out.angle.textContent = "\u2014";
+        out.pin.style.left = "50%";
+        out.pin.style.opacity = "0.25";
+      } else {
+        var c = Math.max(-1, Math.min(1, dot / (la * lb)));
+        out.cos.innerHTML = '<small>cos θ</small>' + num(c, 3);
+        out.verdict.textContent = verdictFor(c);
+        out.div.textContent = num(dot, 3) + " / (" + num(la, 3) + " \u00D7 " + num(lb, 3) + ") = " + num(c, 3);
+        out.angle.textContent = num(Math.acos(c) * 180 / Math.PI, 2) + "\u00B0";
+        out.pin.style.left = ((c + 1) / 2 * 100) + "%";
+        out.pin.style.opacity = "1";
+      }
+      draw();
+    }
+
+    ["a0", "a1", "b0", "b1"].forEach(function (id) {
+      inputs[id].addEventListener("input", function () {
+        var v = parseFloat(inputs[id].value);
+        if (isNaN(v)) return;
+        state[id[0]][+id[1]] = v;
+        update(false);
+      });
+      inputs[id].addEventListener("blur", function () { update(true); });
+    });
+
+    root.querySelector("button.reset").addEventListener("click", function () {
+      state = { a: cfg.a.slice(), b: cfg.b.slice() };
+      update(true);
+    });
+
+    update(true);
+  }
+
+  build(document.getElementById("ex1"), {
+    title: "Example 1: pointing the same way",
+    lede: "A and B have different coordinates but sit close together in direction, so the score is near 1.",
+    a: [4, 3], b: [3, 4],
+    note: "Try dragging B further along the same line as A. The angle shrinks toward 0\u00B0 and the cosine reaches 1, even though B becomes much longer than A."
+  });
+
+  build(document.getElementById("ex2"), {
+    title: "Example 2: pointing different ways",
+    lede: "A points right and slightly up, B points up and slightly left. They are nearly perpendicular, so the score is close to 0.",
+    a: [4, 2], b: [-1, 3],
+    note: "A cosine of 0 means the vectors are perpendicular. Rotate B past that point and the score goes negative, reaching \u22121 when B points exactly opposite to A."
+  });
+})();
+</script>
+</body>
+</html>
